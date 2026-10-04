@@ -1,21 +1,25 @@
-import { eq } from "drizzle-orm";
-import { getDb } from "../db";
-import { apiCache } from "../db/schema";
+type CacheEntry = { body: string; expiresAt: number };
+
+const globalCache = globalThis as typeof globalThis & {
+  researchAtlasCache?: Map<string, CacheEntry>;
+};
+
+const cache = globalCache.researchAtlasCache ??= new Map<string, CacheEntry>();
 
 export async function getCached(key: string): Promise<string | null> {
-  try {
-    const [row] = await getDb().select().from(apiCache).where(eq(apiCache.key, key)).limit(1);
-    return row && row.expiresAt > Date.now() ? row.body : null;
-  } catch {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    cache.delete(key);
     return null;
   }
+  return entry.body;
 }
 
 export async function putCached(key: string, body: string, ttlMs: number) {
-  try {
-    await getDb().insert(apiCache).values({ key, body, expiresAt: Date.now() + ttlMs })
-      .onConflictDoUpdate({ target: apiCache.key, set: { body, expiresAt: Date.now() + ttlMs } });
-  } catch {
-    // Cache failures must not block research searches.
+  if (cache.size >= 500) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
   }
+  cache.set(key, { body, expiresAt: Date.now() + ttlMs });
 }
