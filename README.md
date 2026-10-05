@@ -43,6 +43,8 @@ Vercel 建置：
 npm run build:vercel
 ```
 
+正式環境已連接 Vercel；推送到 GitHub 的 `main` 分支會自動觸發 Production 部署。
+
 程式碼檢查：
 
 ```bash
